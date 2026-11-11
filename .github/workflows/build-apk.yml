@@ -1,0 +1,51 @@
+name: Build Home Low Score Scanner APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'app/**'
+      - '*.gradle'
+      - '*.properties'
+      - 'settings.gradle'
+      - '.github/workflows/build-apk.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack uploaded one-file archive when present
+        shell: bash
+        run: |
+          if [ -f "HTHomeLowScore_v1_1_OneUpload.zip" ]; then
+            mkdir -p source
+            unzip -oq "HTHomeLowScore_v1_1_OneUpload.zip" -d source
+            echo "BUILD_DIR=source" >> "$GITHUB_ENV"
+          else
+            echo "BUILD_DIR=." >> "$GITHUB_ENV"
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Install required Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Verify scanner engine
+        working-directory: ${{ env.BUILD_DIR }}
+        run: node test-engine.cjs
+      - name: Compile Android debug APK
+        working-directory: ${{ env.BUILD_DIR }}
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HTHomeLowScore-v1.1-APK
+          path: ${{ env.BUILD_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
